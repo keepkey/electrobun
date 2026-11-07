@@ -32,6 +32,7 @@
 #include <cmath>
 #include <atomic>
 #include "../shared/pending_resize_queue.h"
+#include "bridge_auth.h"
 #include <gio/gio.h>
 #include <stdlib.h>
 #include <sys/stat.h>
@@ -2556,6 +2557,7 @@ public:
     HandlePostMessage bunBridgeHandler;
     HandlePostMessage internalBridgeHandler;
     bool isSandboxed;
+    const std::string bridgeToken = electrobun::createWebKitBridgeToken();
     std::string electrobunPreloadScript;
     std::string customPreloadScript;
     std::string partition;
@@ -2654,6 +2656,9 @@ public:
             }
         }
         
+        // Install before both preloads so the core's bridge aliases resolve to
+        // authenticated wrappers (upstream 575df99d).
+        addPreloadScriptToWebView(electrobun::webKitBridgeBootstrap(bridgeToken).c_str());
         // Add preload scripts
         if (!this->electrobunPreloadScript.empty()) {
             addPreloadScriptToWebView(this->electrobunPreloadScript.c_str());
@@ -2901,6 +2906,7 @@ public:
         if (manager) {
             // Remove all custom scripts (we'll track them with a prefix)
             webkit_user_content_manager_remove_all_scripts(manager);
+            addPreloadScriptToWebView(electrobun::webKitBridgeBootstrap(bridgeToken).c_str());
             
             // Re-add electrobun preload script
             if (!electrobunPreloadScript.empty()) {
@@ -3047,11 +3053,13 @@ public:
             JSCValue* value = webkit_javascript_result_get_js_value(js_result);
             if (value && JSC_IS_VALUE(value) && jsc_value_is_string(value)) {
                 gchar* str_value = jsc_value_to_string(value);
-                if (str_value) {
+                // Drop messages without this webview's top-frame token (upstream 575df99d).
+                const char* payload = electrobun::authenticatedWebKitBridgePayload(str_value, impl->bridgeToken);
+                if (str_value && payload) {
                     // Create a copy for the callback to avoid memory issues
-                    size_t len = strlen(str_value);
+                    size_t len = strlen(payload);
                     char* message_copy = new char[len + 1];
-                    strcpy(message_copy, str_value);
+                    strcpy(message_copy, payload);
 
                     // Call the callback
                     impl->eventBridgeHandler(impl->webviewId, message_copy);
@@ -3076,11 +3084,13 @@ public:
             JSCValue* value = webkit_javascript_result_get_js_value(js_result);
             if (value && JSC_IS_VALUE(value) && jsc_value_is_string(value)) {
                 gchar* str_value = jsc_value_to_string(value);
-                if (str_value) {
+                // Drop messages without this webview's top-frame token (upstream 575df99d).
+                const char* payload = electrobun::authenticatedWebKitBridgePayload(str_value, impl->bridgeToken);
+                if (str_value && payload) {
                     // Create a copy for the callback to avoid memory issues
-                    size_t len = strlen(str_value);
+                    size_t len = strlen(payload);
                     char* message_copy = new char[len + 1];
-                    strcpy(message_copy, str_value);
+                    strcpy(message_copy, payload);
                     
                     // Call the callback
                     impl->bunBridgeHandler(impl->webviewId, message_copy);
@@ -3105,11 +3115,13 @@ public:
             JSCValue* value = webkit_javascript_result_get_js_value(js_result);
             if (value && JSC_IS_VALUE(value) && jsc_value_is_string(value)) {
                 gchar* str_value = jsc_value_to_string(value);
-                if (str_value) {
+                // Drop messages without this webview's top-frame token (upstream 575df99d).
+                const char* payload = electrobun::authenticatedWebKitBridgePayload(str_value, impl->bridgeToken);
+                if (str_value && payload) {
                     // Create a copy for the callback to avoid memory issues
-                    size_t len = strlen(str_value);
+                    size_t len = strlen(payload);
                     char* message_copy = new char[len + 1];
-                    strcpy(message_copy, str_value);
+                    strcpy(message_copy, payload);
                     
                     // Call the callback
                     impl->internalBridgeHandler(impl->webviewId, message_copy);
