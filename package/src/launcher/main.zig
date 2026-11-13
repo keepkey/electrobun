@@ -438,7 +438,8 @@ pub fn main(init: std.process.Init) !void {
         .zig, .rust, .go, .odin => {
             const main_binary_name = if (builtin.os.tag == .windows) "main.exe" else "main";
             const main_binary_path = try std.fs.path.join(arena_alloc, &.{ exe_dir, main_binary_name });
-            argv = &[_][]const u8{main_binary_path};
+            // keepkey: arena-owned; an array literal here dies with the switch prong.
+            argv = try arena_alloc.dupe([]const u8, &.{main_binary_path});
         },
         .bun, .cottontail => {
             const main_script = try std.fs.path.join(arena_alloc, &.{ exe_dir, "..", "Resources", "main.js" });
@@ -451,7 +452,7 @@ pub fn main(init: std.process.Init) !void {
                 .macos, .linux, .windows => try std.fs.path.join(arena_alloc, &.{ exe_dir, runtime_name }),
                 else => @panic("Unsupported platform"),
             };
-            argv = &[_][]const u8{ runtime_path, main_script };
+            argv = try arena_alloc.dupe([]const u8, &.{ runtime_path, main_script });
         },
     }
 
