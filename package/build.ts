@@ -1171,7 +1171,7 @@ async function vendorZig() {
 		const zigArch = ZIG_HOST_ARCH === "arm64" ? "aarch64" : "x86_64";
 		const zigFolder = `zig-${zigArch}-windows-${ZIG_VERSION}`;
 		await $`rm -rf vendors/zig-temp vendors/zig.zip`;
-		await $`mkdir -p vendors/zig && curl -fL --retry 5 https://ziglang.org/download/${ZIG_VERSION}/${zigFolder}.zip -o vendors/zig.zip && powershell -ExecutionPolicy Bypass -Command Expand-Archive -Path vendors/zig.zip -DestinationPath vendors/zig-temp && mv vendors/zig-temp/${zigFolder}/zig.exe vendors/zig && mv vendors/zig-temp/${zigFolder}/lib vendors/zig/`;
+		await $`mkdir -p vendors/zig && curl -fL --retry 5 https://ziglang.org/download/${ZIG_VERSION}/${zigFolder}.zip -o vendors/zig.zip && mkdir -p vendors/zig-temp && tar -xf vendors/zig.zip -C vendors/zig-temp && mv vendors/zig-temp/${zigFolder}/zig.exe vendors/zig && mv vendors/zig-temp/${zigFolder}/lib vendors/zig/`;
 		await $`rm -rf vendors/zig-temp vendors/zig.zip`;
 	} else if (OS === "linux") {
 		const zigArch = ARCH === "arm64" ? "aarch64" : "x86_64";

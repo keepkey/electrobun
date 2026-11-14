@@ -57,8 +57,8 @@ jobs:
         run: |
           hutch run install
           if ($LASTEXITCODE -ne 0) { throw "hutch run install failed ($LASTEXITCODE)" }
-          hutch run build:release
-          if ($LASTEXITCODE -ne 0) { throw "hutch run build:release failed ($LASTEXITCODE)" }
+          hutch build.ts --release --core-only
+          if ($LASTEXITCODE -ne 0) { throw "devkit build failed ($LASTEXITCODE)" }
 
       - name: Fork unit tests (RPC + preload fixes)
         working-directory: package
