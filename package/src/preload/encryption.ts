@@ -42,7 +42,26 @@ async function generateKeyFromBytes(rawKey: Uint8Array): Promise<CryptoKey> {
 	);
 }
 
-export async function initEncryption(): Promise<void> {
+// The preload can run while the webview is still in a transient context
+// (about:blank before views:// commits) where crypto.subtle is undefined.
+// Failing once there leaves RPC dead for the page's lifetime, so wait for it.
+async function waitForSubtle(maxAttempts: number, retryDelayMs: number) {
+	for (let attempt = 1; ; attempt++) {
+		if (window.crypto?.subtle) return;
+		if (attempt >= maxAttempts) {
+			throw new Error(
+				`crypto.subtle unavailable after ${maxAttempts} attempts`,
+			);
+		}
+		await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+	}
+}
+
+export async function initEncryption({
+	maxAttempts = 50,
+	retryDelayMs = 100,
+}: { maxAttempts?: number; retryDelayMs?: number } = {}): Promise<void> {
+	await waitForSubtle(maxAttempts, retryDelayMs);
 	const secretKey = await generateKeyFromBytes(
 		new Uint8Array(window.__electrobunSecretKeyBytes),
 	);
