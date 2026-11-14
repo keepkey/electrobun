@@ -22,7 +22,8 @@ jobs:
       matrix:
         include:
           - { name: macos-arm64, os: macos-14 }
-          - { name: macos-x64, os: macos-13 }
+          # Electrobun 2.x needs a native Intel macOS 14+ host; macos-13 is retired.
+          - { name: macos-x64, os: macos-15-intel }
           - { name: windows-x64, os: windows-2022 }
           - { name: linux-x64-ubuntu22, os: ubuntu-22.04 }
     steps:
@@ -73,7 +74,7 @@ jobs:
       - name: Bundle checks (macOS)
         if: runner.os == 'macOS'
         working-directory: keepkey/demo
-        run: scripts/verify-bundle.sh "$(find build -maxdepth 3 -name '*.app' | head -1)" || true
+        run: scripts/verify-bundle.sh "$(find build -maxdepth 3 -name '*.app' | head -1)"
 
       - uses: actions/upload-artifact@v4
         if: always()

@@ -12,10 +12,15 @@ if /usr/libexec/PlistBuddy -c "Print :NSCameraUsageDescription" "$plist" >/dev/n
 else
   bad "Info.plist NSCameraUsageDescription"
 fi
-if codesign -d --entitlements :- "$app" 2>/dev/null | grep -q "com.apple.security.device.camera"; then
-  pass "camera entitlement"
+# Entitlements exist only on a real signature; CI builds are unsigned (ad hoc).
+if codesign -dv "$app" 2>&1 | grep -q "^Authority=Developer ID Application"; then
+  if codesign -d --entitlements :- "$app" 2>/dev/null | grep -q "com.apple.security.device.camera"; then
+    pass "camera entitlement"
+  else
+    bad "camera entitlement"
+  fi
 else
-  bad "camera entitlement (needs a codesigned build)"
+  echo "SKIP camera entitlement (not Developer ID signed)"
 fi
 min=$(/usr/libexec/PlistBuddy -c "Print :LSMinimumSystemVersion" "$plist" 2>/dev/null || echo "?")
 echo "INFO LSMinimumSystemVersion=$min"
