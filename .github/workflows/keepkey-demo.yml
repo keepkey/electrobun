@@ -21,11 +21,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: macos-arm64, os: macos-14 }
+          - { name: macos-arm64, os: macos-15 }
           # Electrobun 2.x needs a native Intel macOS 14+ host; macos-13 is retired.
           - { name: macos-x64, os: macos-15-intel }
           - { name: windows-x64, os: windows-2022 }
-          - { name: linux-x64-ubuntu22, os: ubuntu-22.04 }
+          # Hutch needs glibc 2.38, so 22.04 can't run it. KeepKey Desktop's CI
+          # holds the 2.35 floor by building the devkit on 22.04 without Hutch.
+          - { name: linux-x64-ubuntu24, os: ubuntu-24.04 }
     steps:
       - uses: actions/checkout@v4
 
@@ -41,6 +43,8 @@ jobs:
         working-directory: package
         shell: bash
         run: |
+          # Git-bash tar reads D:\ as a remote host; use Windows tar.
+          [ "$RUNNER_OS" != Windows ] || export PATH="/c/Windows/System32:$PATH"
           hutch run install
           hutch run build:dev
 
@@ -53,6 +57,8 @@ jobs:
         working-directory: keepkey/demo
         shell: bash
         run: |
+          # Git-bash tar reads D:\ as a remote host; use Windows tar.
+          [ "$RUNNER_OS" != Windows ] || export PATH="/c/Windows/System32:$PATH"
           export HUTCH_ELECTROBUN_DEVKIT_ROOT="$GITHUB_WORKSPACE/package/dist"
           export HUTCH_DEFAULT_ELECTROBUN="$(node -p "require('../../package/package.json').version")"
           hutch run install
