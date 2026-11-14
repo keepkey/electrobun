@@ -1,0 +1,87 @@
+name: KeepKey devkit
+
+# Builds the Electrobun devkit archives KeepKey Desktop builds against, one per
+# platform it ships, and keeps them as workflow artifacts only. Publishing them
+# is a separate, owner-approved manual step (keepkey/devkit/README.md).
+# No secrets, no signing, no release.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  devkit:
+    name: devkit (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: macos-arm64, os: macos-14, arch: arm64 }
+          # Electrobun 2.x needs a native Intel macOS 14+ host; macos-13 is retired.
+          - { target: macos-x64, os: macos-15-intel, arch: x64 }
+          # 22.04 keeps the Linux devkit at the glibc 2.35 floor.
+          - { target: linux-x64, os: ubuntu-22.04, arch: x64 }
+          - { target: win-x64, os: windows-latest, arch: x64 }
+    env:
+      ELECTROBUN_MACOS_DEPLOYMENT_TARGET: "13.0"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.22.1"
+
+      - name: Check native runner architecture
+        shell: bash
+        env:
+          EXPECTED_ARCH: ${{ matrix.arch }}
+        run: node -e 'if (process.arch !== process.env.EXPECTED_ARCH) throw new Error(`expected native ${process.env.EXPECTED_ARCH} Node, got ${process.arch}`)'
+
+      - name: Install Hutch
+        if: runner.os != 'Linux'
+        uses: ./.github/actions/install-hutch
+
+      # Hutch cannot load a config on 22.04 (Cottontail needs glibc 2.38), so
+      # build.ts runs on plain Bun there, at Hutch's Bun version.
+      - name: Install Bun
+        if: runner.os == 'Linux'
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.4"
+
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev \
+            libpipewire-0.3-dev build-essential cmake pkg-config
+
+      - name: Set up MSVC
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Install package dependencies
+        working-directory: package
+        run: npm ci
+
+      # Default shell on purpose: Git Bash's tar breaks build.ts on Windows.
+      - name: Build devkit
+        env:
+          HUTCH_BINARY: ${{ runner.os == 'Linux' && 'bun' || '' }}
+        run: node keepkey/devkit/build-devkit.mjs
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: electrobun-devkit-${{ matrix.target }}
+          path: keepkey/devkit/out/
+          if-no-files-found: error
+          retention-days: 30
