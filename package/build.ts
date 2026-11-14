@@ -2452,13 +2452,18 @@ async function buildNative() {
 
 			try {
 				const cflagsResult =
-					await $`pkg-config --cflags libpipewire-0.3`.quiet();
-				pipewireCflags = cflagsResult.stdout.toString().trim();
+					await $`pkg-config --cflags libpipewire-0.3 gio-unix-2.0`.quiet();
+				const cflags = cflagsResult.stdout.toString().trim();
+				// The capture code needs spa/param/buffers.h, which older PipeWire
+				// lacks (Ubuntu 22.04 ships 0.3.48): build without capture there.
+				const probe = new Response("#include <spa/param/buffers.h>\n");
+				await $`g++ -fsyntax-only -x c++ ${cflags.split(/\s+/).filter((f) => f)} - < ${probe}`.quiet();
+				pipewireCflags = cflags;
 				hasWaylandScreenCapture = true;
 				console.log("Wayland screen capture enabled via PipeWire");
 			} catch {
 				console.warn(
-					"⚠️  Wayland screen capture disabled: PipeWire development headers not found",
+					"⚠️  Wayland screen capture disabled: PipeWire/GIO development headers missing or too old",
 				);
 			}
 

@@ -6,6 +6,8 @@
 #ifdef ELECTROBUN_ENABLE_WAYLAND_SCREEN_CAPTURE
 
 #include <gio/gio.h>
+// GLib < 2.79 (Ubuntu 22.04) declares GUnixFDList only here, not in gio.h.
+#include <gio/gunixfdlist.h>
 #include <glib.h>
 
 #include <algorithm>
