@@ -16,7 +16,7 @@ jobs:
   demo:
     name: demo (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 90
+    timeout-minutes: 180
     strategy:
       fail-fast: false
       matrix:
@@ -53,7 +53,9 @@ jobs:
         if: runner.os == 'Windows'
         working-directory: package
         shell: pwsh
-        timeout-minutes: 45
+        # Windows tar unpacks CEF's 166 MB .tar.bz2 slowly (45+ min on a runner);
+        # measure the real first-build time instead of cutting it off.
+        timeout-minutes: 150
         run: |
           hutch run install
           if ($LASTEXITCODE -ne 0) { throw "hutch run install failed ($LASTEXITCODE)" }
