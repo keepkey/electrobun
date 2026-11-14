@@ -4,7 +4,7 @@ import { $ } from "bun";
 import { spawnSync } from "child_process";
 import { createHash } from "crypto";
 import { platform, arch, tmpdir } from "os";
-import { basename, join } from "path";
+import { basename, dirname, join } from "path";
 import {
 	existsSync,
 	readdirSync,
@@ -1921,10 +1921,27 @@ async function vendorCEF() {
 				"Note: Windows tar extraction of bz2 files can be slow, please be patient...",
 			);
 
+			// keepkey: Windows tar (bsdtar) has only zlib built in, so -j pipes through an
+			// external bzip2; with Git's MSYS bzip2 that pipe never finished (150 min on CI).
+			// Decompress to a plain .tar with bzip2 on files first, then unpack it.
+			const gitExe = Bun.which("git");
+			const bzip2 =
+				Bun.which("bzip2") ??
+				[gitExe && join(dirname(dirname(gitExe)), "usr", "bin", "bzip2.exe")].find(
+					(p): p is string => !!p && existsSync(p),
+				);
+			const plainTar = tempPath.replace(/\.bz2$/, "");
 			try {
-				await $`tar -xjf "${tempPath}" --strip-components=1 -C vendors/cef`;
+				if (bzip2) {
+					console.log(`Decompressing with ${bzip2}...`);
+					await $`${bzip2} -d -f ${tempPath}`;
+					await $`tar -xf ${plainTar} --strip-components=1 -C vendors/cef`;
+				} else {
+					await $`tar -xjf "${tempPath}" --strip-components=1 -C vendors/cef`;
+				}
 			} finally {
 				rmSync(tempPath, { force: true });
+				rmSync(plainTar, { force: true });
 			}
 
 			// Verify extraction worked
