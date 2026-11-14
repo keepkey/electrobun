@@ -1,0 +1,84 @@
+name: KeepKey demo
+
+# Builds the keepkey/demo app against this fork's devkit on the platforms
+# KeepKey Desktop ships, unsigned, and runs its self-checks headless.
+# Signing happens locally only; this workflow holds no secrets.
+on:
+  push:
+    branches: ["keepkey/**"]
+    paths: ["keepkey/**", "package/**", ".github/workflows/keepkey-demo.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  demo:
+    name: demo (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: macos-arm64, os: macos-14 }
+          - { name: macos-x64, os: macos-13 }
+          - { name: windows-x64, os: windows-2022 }
+          - { name: linux-x64-ubuntu22, os: ubuntu-22.04 }
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/install-hutch
+
+      - name: Linux desktop packages
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libudev-dev libusb-1.0-0-dev xvfb dbus-x11 openbox
+
+      - name: Build devkit (fork sources)
+        working-directory: package
+        shell: bash
+        run: |
+          hutch run install
+          hutch run build:dev
+
+      - name: Fork unit tests (RPC + preload fixes)
+        working-directory: package
+        shell: bash
+        run: HUTCH_RUNTIME=bun hutch test src/shared/rpc.test.ts src/preload/encryption.test.ts
+
+      - name: Build demo
+        working-directory: keepkey/demo
+        shell: bash
+        run: |
+          export HUTCH_ELECTROBUN_DEVKIT_ROOT="$GITHUB_WORKSPACE/package/dist"
+          export HUTCH_DEFAULT_ELECTROBUN="$(node -p "require('../../package/package.json').version")"
+          hutch run install
+          hutch electrobun build --env=stable
+
+      - name: Self-checks (headless)
+        working-directory: keepkey/demo
+        shell: bash
+        run: |
+          export HUTCH_ELECTROBUN_DEVKIT_ROOT="$GITHUB_WORKSPACE/package/dist"
+          export HUTCH_DEFAULT_ELECTROBUN="$(node -p "require('../../package/package.json').version")"
+          export DEMO_HEADLESS=1
+          if [ "$RUNNER_OS" = Linux ]; then
+            xvfb-run -a dbus-run-session -- sh -c 'openbox & hutch electrobun dev'
+          else
+            hutch electrobun dev
+          fi
+
+      - name: Bundle checks (macOS)
+        if: runner.os == 'macOS'
+        working-directory: keepkey/demo
+        run: scripts/verify-bundle.sh "$(find build -maxdepth 3 -name '*.app' | head -1)" || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: keepkey-demo-${{ matrix.name }}
+          path: |
+            keepkey/demo/artifacts
+          if-no-files-found: warn

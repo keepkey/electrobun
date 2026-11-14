@@ -1,0 +1,13 @@
+{
+	"name": "keepkey-electrobun-demo",
+	"version": "0.0.1",
+	"private": true,
+	"description": "Exercises the Electrobun patterns KeepKey Desktop depends on, with self-checks",
+	"dependencies": {
+		"node-hid": "^3.3.0",
+		"usb": "^2.17.0"
+	},
+	"devDependencies": {
+		"@types/bun": "latest"
+	}
+}
