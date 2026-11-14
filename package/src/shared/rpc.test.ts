@@ -141,3 +141,49 @@ describe("RPC message backpressure", () => {
 		await delivery;
 	});
 });
+
+describe("createRPC request handler errors", () => {
+	async function respondTo(thrown: unknown) {
+		let receive!: (packet: any) => void;
+		const sentPackets: any[] = [];
+		createRPC<any, EmptySchema>({
+			transport: {
+				send: (packet) => {
+					sentPackets.push(packet);
+				},
+				registerHandler: (handler) => {
+					receive = handler;
+				},
+			},
+			requestHandler: () => {
+				throw thrown;
+			},
+		});
+		await receive({ type: "request", id: 7, method: "fail", params: {} });
+		return sentPackets;
+	}
+
+	it("answers an Error throw with its message", async () => {
+		expect(await respondTo(new Error("boom"))).toEqual([
+			{ type: "response", id: 7, success: false, error: "boom" },
+		]);
+	});
+
+	it("answers a non-Error throw instead of leaving the request hanging", async () => {
+		expect(await respondTo("plain string")).toEqual([
+			{ type: "response", id: 7, success: false, error: "plain string" },
+		]);
+		expect(await respondTo({ message: "PIN invalid" })).toEqual([
+			{ type: "response", id: 7, success: false, error: "PIN invalid" },
+		]);
+		// Decoded protobuf failures nest the text one level down.
+		expect(
+			await respondTo({ message: { code: 3, message: "Enable AdvancedMode" } }),
+		).toEqual([
+			{ type: "response", id: 7, success: false, error: "Enable AdvancedMode" },
+		]);
+		expect(await respondTo(undefined)).toEqual([
+			{ type: "response", id: 7, success: false, error: "undefined" },
+		]);
+	});
+});

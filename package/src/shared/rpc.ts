@@ -432,6 +432,17 @@ export function createRPC<
 			messageListeners.delete(message);
 	}
 
+	// Text for a thrown value: Errors, strings, and plain objects carrying
+	// `message` (one level nested too, as decoded protobuf failures do).
+	function errorText(error: unknown): string {
+		if (typeof error === "string") return error;
+		const message = (error as { message?: unknown } | null)?.message;
+		if (typeof message === "string") return message;
+		const nested = (message as { message?: unknown } | null)?.message;
+		if (typeof nested === "string") return nested;
+		return String(error);
+	}
+
 	// ---- incoming packet handler ----
 
 	async function handler(message: _RPCPacket) {
@@ -455,12 +466,13 @@ export function createRPC<
 					payload: await requestHandler(method as any, params),
 				};
 			} catch (error) {
-				if (!(error instanceof Error)) throw error;
+				// Answer every throw. Re-throwing a non-Error sent no response,
+				// so the caller hung until its timeout and lost the reason.
 				response = {
 					type: "response",
 					id,
 					success: false,
-					error: error.message,
+					error: errorText(error),
 				};
 			}
 			debugHooks.onSend?.(response);
